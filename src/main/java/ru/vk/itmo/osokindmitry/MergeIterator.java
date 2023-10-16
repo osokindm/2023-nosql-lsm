@@ -12,7 +12,7 @@ public class MergeIterator implements Iterator<Entry<MemorySegment>> {
 
     private final PriorityQueue<PeekingIterator> pq;
 
-    public MergeIterator(List<PeekingIterator> iterators, MemorySegment from, MemorySegment to) throws IOException {
+    public MergeIterator(List<PeekingIterator> iterators) throws IOException {
         pq = new PriorityQueue<>((a, b) -> {
 
             if (InMemoryDao.compare(a.peek().key(), b.peek().key()) == 0) {

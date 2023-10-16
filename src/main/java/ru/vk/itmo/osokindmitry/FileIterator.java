@@ -9,17 +9,22 @@ import java.util.Iterator;
 
 public class FileIterator implements Iterator<Entry<MemorySegment>> {
 
-    private final MemorySegment segment;
+    private final MemorySegment mappedFile;
+    private final MemorySegment to;
+    private final FileReader fileReader;
     private long offset;
+    private boolean hasNext;
 
-    public FileIterator(MemorySegment mappedFile, FileReader fileReader, MemorySegment from) {
-        segment = mappedFile;
+    public FileIterator(MemorySegment mappedFile, FileReader fileReader, MemorySegment from, MemorySegment to) {
+        this.mappedFile = mappedFile;
+        this.fileReader = fileReader;
+        this.to = to;
         offset = fileReader.getOffset(mappedFile, from);
     }
 
     @Override
     public boolean hasNext() {
-        return offset < segment.byteSize();
+        return offset < mappedFile.byteSize();
     }
 
     @Override
@@ -30,13 +35,13 @@ public class FileIterator implements Iterator<Entry<MemorySegment>> {
 
         // FileReader readNext
 
-        long keySize = segment.get(ValueLayout.JAVA_LONG_UNALIGNED, offset);
+        long keySize = mappedFile.get(ValueLayout.JAVA_LONG_UNALIGNED, offset);
         offset += Long.BYTES;
-        MemorySegment slicedKey = segment.asSlice(offset, keySize);
+        MemorySegment slicedKey = mappedFile.asSlice(offset, keySize);
         offset += keySize;
-        long entrySize = segment.get(ValueLayout.JAVA_LONG_UNALIGNED, offset);
+        long entrySize = mappedFile.get(ValueLayout.JAVA_LONG_UNALIGNED, offset);
         offset += Long.BYTES;
-        return new BaseEntry<>(slicedKey, segment.asSlice(offset, entrySize));
+        return new BaseEntry<>(slicedKey, mappedFile.asSlice(offset, entrySize));
     }
 
 }
