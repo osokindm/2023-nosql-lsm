@@ -18,25 +18,14 @@ import java.util.concurrent.ConcurrentSkipListMap;
 
 public class InMemoryDao implements Dao<MemorySegment, Entry<MemorySegment>> {
 
-    private final Comparator<MemorySegment> comparator = InMemoryDao::compare;
-
-    private final ConcurrentNavigableMap<MemorySegment, Entry<MemorySegment>> memTable
-            = new ConcurrentSkipListMap<>(comparator);
-
+    private final ConcurrentNavigableMap<MemorySegment, Entry<MemorySegment>> memTable;
     private final Arena arena;
     private final Path path;
 
-
-    public InMemoryDao() {
-        path = Path.of("C:\\Users\\dimit\\AppData\\Local\\Temp");
-        arena = Arena.ofConfined();
-    }
-
     public InMemoryDao(Config config) {
-//        FileHandler fileHandler = new FileHandler(config.basePath().resolve(FILE_NAME_PATTERN).toString());
-
         path = config.basePath();
         arena = Arena.ofConfined();
+        memTable = new ConcurrentSkipListMap<>(InMemoryDao::compare);
     }
 
     @Override
@@ -94,56 +83,6 @@ public class InMemoryDao implements Dao<MemorySegment, Entry<MemorySegment>> {
         FileWriter fw = new FileWriter(path, arena, getSsTableSize());
         fw.flushToSegment(memTable.values().iterator(), memTable.size());
     }
-
- //    private long createSearchTree(MemorySegment ssTable, int lo, int hi, Iterator<Entry<MemorySegment>> it, long offset) {
-//
-//        if (hi < lo) {
-//            throw new IllegalArgumentException();
-//        }
-//
-//        int mid = (lo + hi) >>> 1;
-//
-//        long entryOffset = offset;
-//        if (lo < mid) {
-//            entryOffset = createSearchTree(ssTable, lo, mid - 1, it, offset);
-//        }
-//
-//        long changingOffset = entryOffset;
-//
-//        if (it.hasNext()) {
-//            Entry<MemorySegment> entry = it.next();
-//            ssTable.set(ValueLayout.JAVA_LONG_UNALIGNED, changingOffset, entry.key().byteSize());
-//            changingOffset += Long.BYTES;
-//            MemorySegment.copy(
-//                    entry.key(),
-//                    0,
-//                    ssTable,
-//                    changingOffset,
-//                    entry.key().byteSize()
-//            );
-//            changingOffset += entry.key().byteSize();
-//
-//            ssTable.set(ValueLayout.JAVA_LONG_UNALIGNED, changingOffset, entry.value().byteSize());
-//            changingOffset += Long.BYTES;
-//            MemorySegment.copy(
-//                    entry.value(),
-//                    0,
-//                    ssTable,
-//                    changingOffset,
-//                    entry.value().byteSize()
-//            );
-//            changingOffset += entry.value().byteSize();
-//
-//            int middle = ((hi - lo) >>> 1) + lo;
-//            ssTable.set(ValueLayout.JAVA_LONG_UNALIGNED, (long) middle * Long.BYTES + Integer.BYTES, entryOffset);
-//        }
-//
-//        if (mid < hi) {
-//            changingOffset = createSearchTree(ssTable, mid + 1, hi, it, changingOffset);
-//        }
-//
-//        return changingOffset;
-//    }
 
     @Override
     public void close() throws IOException {

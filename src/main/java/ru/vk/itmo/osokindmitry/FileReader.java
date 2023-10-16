@@ -33,9 +33,17 @@ public class FileReader {
             Set<StandardOpenOption> openOptions = Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ);
 
             paths.forEach(p -> {
-                try (FileChannel channel = FileChannel.open(p, openOptions)){
+                try (FileChannel channel = FileChannel.open(p, openOptions)) {
+
                     MemorySegment segment = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size(), arena);
-                    fileIterators.add(new FileIterator(segment, this, from, to));
+                    fileIterators.add(
+                            new FileIterator(
+                                    segment,
+                                    getOffsetBinary(segment, from),
+                                    getOffsetBinary(segment, to)
+                            )
+                    );
+
                 } catch (IOException e) {
                     throw new RuntimeException();
                 }
@@ -50,7 +58,7 @@ public class FileReader {
             Set<StandardOpenOption> openOptions = Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ);
 
             for (Path ssTablePath : paths.toList()) {
-                try (FileChannel channel = FileChannel.open(ssTablePath, openOptions)){
+                try (FileChannel channel = FileChannel.open(ssTablePath, openOptions)) {
                     MemorySegment segment = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size(), arena);
                     Entry<MemorySegment> entry = binarySearch(segment, key);
                     if (entry != null) {
@@ -62,9 +70,6 @@ public class FileReader {
         return null;
     }
 
-//    public long getOffsetBinary(MemorySegment mappedSegment, MemorySegment key) {
-//
-//    }
 
     public long getOffset(MemorySegment mappedSegment, MemorySegment key) {
 
@@ -86,6 +91,28 @@ public class FileReader {
             initialOffset += Long.BYTES + valueSize;
         } while ((InMemoryDao.compare(slicedKey, key) < 0) || initialOffset < mappedSegment.byteSize());
         return initialOffset - keySize - valueSize - Long.BYTES * 2;
+    }
+
+    public long getOffsetBinary(MemorySegment mappedSegment, MemorySegment key) {
+
+        long size = mappedSegment.get(ValueLayout.JAVA_INT_UNALIGNED, 0);
+        long lo = 0;
+        long hi = size - 1;
+        long mid;
+        while (lo <= hi) {
+            mid = lo + ((hi - lo) >>> 1);
+            long keySize = mappedSegment.get(ValueLayout.JAVA_LONG_UNALIGNED, mid * Long.BYTES + Integer.BYTES);
+            MemorySegment slicedKey = mappedSegment.asSlice(mid, keySize);
+            int diff = InMemoryDao.compare(slicedKey, key);
+            if (diff < 0) {
+                lo = mid + 1;
+            } else if (diff > 0) {
+                hi = mid - 1;
+            } else {
+                return mid;
+            }
+        }
+        return lo;
     }
 
     private Entry<MemorySegment> binarySearch(MemorySegment mappedSegment, MemorySegment key) {
@@ -113,9 +140,9 @@ public class FileReader {
         }
         return null;
     }
-
-    private long readLong(MemorySegment segment, long offset) {
-        return segment.get(ValueLayout.JAVA_LONG_UNALIGNED, offset);
-    }
+//
+//    private long readLong(MemorySegment segment, long offset) {
+//        return segment.get(ValueLayout.JAVA_LONG_UNALIGNED, offset);
+//    }
 
 }
