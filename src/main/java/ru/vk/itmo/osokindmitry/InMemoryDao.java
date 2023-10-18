@@ -10,7 +10,6 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentNavigableMap;
@@ -21,19 +20,26 @@ public class InMemoryDao implements Dao<MemorySegment, Entry<MemorySegment>> {
     private final ConcurrentNavigableMap<MemorySegment, Entry<MemorySegment>> memTable;
     private final Arena arena;
     private final Path path;
+    private final FileReader fr;
 
     public InMemoryDao(Config config) {
         path = config.basePath();
         arena = Arena.ofConfined();
         memTable = new ConcurrentSkipListMap<>(InMemoryDao::compare);
+        // todo check path
+
+        try {
+            fr = new FileReader(path, arena);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public Entry<MemorySegment> get(MemorySegment key) {
         Entry<MemorySegment> entry = memTable.get(key);
 
-        if (entry == null && path.toFile().exists()) {
-            FileReader fr = new FileReader(path, arena);
+        if (entry == null) {
             try {
                 entry = fr.get(key);
             } catch (IOException e) {
@@ -60,12 +66,11 @@ public class InMemoryDao implements Dao<MemorySegment, Entry<MemorySegment>> {
 
         List<PeekingIterator> peekingIterators = new ArrayList<>();
         peekingIterators.add(new PeekingIterator(mTableIterator, 0));
-        FileReader fr = new FileReader(path, arena);
 
         try {
             List<FileIterator> fileIterators = fr.getFileIterators(from, to);
             for (int i = 0; i < fileIterators.size(); i++) {
-                peekingIterators.add(new PeekingIterator(fileIterators.get(i), i));
+                peekingIterators.add(new PeekingIterator(fileIterators.get(i), i + 1));
             }
             return new MergeIterator(peekingIterators);
         } catch (IOException e) {
@@ -80,7 +85,7 @@ public class InMemoryDao implements Dao<MemorySegment, Entry<MemorySegment>> {
 
     @Override
     public void flush() throws IOException {
-        FileWriter fw = new FileWriter(path, arena, getSsTableSize());
+        FileWriter fw = new FileWriter(path, arena, getSsTableSize(), fr.getFilesNumber());
         fw.flushToSegment(memTable.values().iterator(), memTable.size());
     }
 

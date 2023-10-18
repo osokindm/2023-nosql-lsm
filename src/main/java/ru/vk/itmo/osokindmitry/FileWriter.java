@@ -9,10 +9,6 @@ import java.lang.foreign.ValueLayout;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.time.Clock;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -22,10 +18,8 @@ public class FileWriter {
 
     private final MemorySegment ssTable;
 
-    public FileWriter(Path path, Arena arena, long segmentSize) throws IOException {
-        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-        LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
-        Path resolvedPath = path.resolve(FILE_NAME + dtf.format(now) + ".txt");
+    public FileWriter(Path path, Arena arena, long segmentSize, int fileId) throws IOException {
+        Path resolvedPath = path.resolve(FILE_NAME + fileId + ".txt");
         try (
                 FileChannel fc = FileChannel.open(
                         resolvedPath,

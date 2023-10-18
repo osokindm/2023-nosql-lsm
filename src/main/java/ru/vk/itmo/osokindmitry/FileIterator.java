@@ -37,9 +37,13 @@ public class FileIterator implements Iterator<Entry<MemorySegment>> {
         offsetFrom += Long.BYTES;
         MemorySegment slicedKey = mappedFile.asSlice(offsetFrom, keySize);
         offsetFrom += keySize;
-        long entrySize = mappedFile.get(ValueLayout.JAVA_LONG_UNALIGNED, offsetFrom);
+        long valueSize = mappedFile.get(ValueLayout.JAVA_LONG_UNALIGNED, offsetFrom);
         offsetFrom += Long.BYTES;
-        return new BaseEntry<>(slicedKey, mappedFile.asSlice(offsetFrom, entrySize));
+        MemorySegment slicedValue = mappedFile.asSlice(offsetFrom, valueSize);
+        offsetFrom += valueSize;
+
+
+        return new BaseEntry<>(slicedKey, slicedValue);
     }
 
 }
