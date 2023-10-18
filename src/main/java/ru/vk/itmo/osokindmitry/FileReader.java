@@ -16,50 +16,66 @@ import java.util.stream.Stream;
 
 public class FileReader {
 
-    private static final String FILE_NAME = "sstable";
     private final Path basePath;
-    private final Arena arena;
-    int filesNumber;
+    private final List<MemorySegment> files = new ArrayList<>();
 
 
     public FileReader(Path path, Arena arena) throws IOException {
         this.basePath = path;
-        this.arena = arena;
-        filesNumber = getMappedFiles();
-    }
 
-    public int getMappedFiles() throws IOException {
-        int n;
+        try (Stream<Path> paths = Files.list(basePath).sorted()) {
+            Set<StandardOpenOption> openOptions = Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ);
 
-        try (Stream<Path> paths = Files.list(basePath)) {
-            n = paths.toList().size();
-
+            List<Path> pathList = paths.toList();
+            for (Path p : pathList) {
+                try (FileChannel channel = FileChannel.open(p, openOptions)) {
+                    files.addFirst(channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size(), arena));
+                } catch (IOException e) {
+                    throw new RuntimeException();
+                }
+            }
         }
-//        return Files.list(basePath).toList().size();
-        return n;
     }
+
+//    public int getMappedFiles() throws IOException {
+//        int n;
+//
+//        try (Stream<Path> paths = Files.list(basePath)) {
+//            n = paths.toList().size();
+//
+//        }
+////        return Files.list(basePath).toList().size();
+//        return n;
+//    }
 
     public int getFilesNumber() {
-        return filesNumber;
+        return files.size();
     }
 
     public List<FileIterator> getFileIterators(MemorySegment from, MemorySegment to) throws IOException {
         final List<FileIterator> fileIterators = new ArrayList<>();
 
-        for (int i = filesNumber - 1; i >= 0; i--) {
-            Set<StandardOpenOption> openOptions = Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ);
-            Path filePath = basePath.resolve(FILE_NAME + i + ".txt");
-            try (FileChannel channel = FileChannel.open(filePath, openOptions)) {
+        for (MemorySegment file : files) {
+            long offsetFrom = from == null ? getInitialOffset(file.byteSize()) : getOffsetBinary(file, from);
+            long offsetTo = to == null ? file.byteSize() : getOffsetBinary(file, to);
 
-                MemorySegment segment = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size(), arena);
-
-                long offsetFrom = from == null ? getInitialOffset(segment.byteSize()) : getOffsetBinary(segment, from);
-                long offsetTo = to == null ? segment.byteSize() : getOffsetBinary(segment, to);
-
-                fileIterators.add(new FileIterator(segment, offsetFrom, offsetTo));
-
-            }
+            fileIterators.add(new FileIterator(file, offsetFrom, offsetTo));
         }
+
+//        for (int i = filesNumber - 1; i >= 0; i--) {
+//            Set<StandardOpenOption> openOptions = Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ);
+//            Path filePath = basePath.resolve(FILE_NAME + i + ".txt");
+//            try (FileChannel channel = FileChannel.open(filePath, openOptions)) {
+//
+//                MemorySegment segment = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size(), arena);
+//
+//                long offsetFrom = from == null ? getInitialOffset(segment.byteSize()) : getOffsetBinary(segment, from);
+//                long offsetTo = to == null ? segment.byteSize() : getOffsetBinary(segment, to);
+//
+//                fileIterators.add(new FileIterator(segment, offsetFrom, offsetTo));
+//
+//            }
+//        }
 
 
 //        try (Stream<Path> paths = Files.list(basePath).sorted(Comparator.comparing(Path::getFileName).reversed())) {
@@ -85,19 +101,28 @@ public class FileReader {
     }
 
     public Entry<MemorySegment> get(MemorySegment key) throws IOException {
-        for (int i = filesNumber - 1; i >= 0; i--) {
-
-            Set<StandardOpenOption> openOptions = Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ);
-            Path filePath = basePath.resolve(FILE_NAME + i + ".txt");
-
-            try (FileChannel channel = FileChannel.open(filePath, openOptions)) {
-                MemorySegment segment = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size(), arena);
-                Entry<MemorySegment> entry = binarySearch(segment, key);
+        for (MemorySegment file : files) {
+            Entry<MemorySegment> entry = binarySearch(file, key);
                 if (entry != null) {
+                    if (entry.value() == null) {
+                        return null;
+                    }
                     return entry;
                 }
-            }
         }
+//        for (int i = filesNumber - 1; i >= 0; i--) {
+//
+//            Set<StandardOpenOption> openOptions = Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ);
+//            Path filePath = basePath.resolve(FILE_NAME + i + ".txt");
+//
+//            try (FileChannel channel = FileChannel.open(filePath, openOptions)) {
+//                MemorySegment segment = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size(), arena);
+//                Entry<MemorySegment> entry = binarySearch(segment, key);
+//                if (entry != null) {
+//                    return entry;
+//                }
+//            }
+//        }
 
 //        try (Stream<Path> paths = Files.list(basePath).sorted(Comparator.comparing(Path::getFileName).reversed())) {
 //            Set<StandardOpenOption> openOptions = Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ);
@@ -186,15 +211,14 @@ public class FileReader {
                 hi = mid;
             } else {
                 long entrySize = mappedSegment.get(ValueLayout.JAVA_LONG_UNALIGNED, entryOffset);
+                if (entrySize == 0) {
+                    return new BaseEntry<>(key, null);
+                }
                 entryOffset += Long.BYTES;
                 return new BaseEntry<>(key, mappedSegment.asSlice(entryOffset, entrySize));
             }
         }
         return null;
     }
-//
-//    private long readLong(MemorySegment segment, long offset) {
-//        return segment.get(ValueLayout.JAVA_LONG_UNALIGNED, offset);
-//    }
 
 }

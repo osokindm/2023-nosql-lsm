@@ -117,8 +117,10 @@ public class InMemoryDao implements Dao<MemorySegment, Entry<MemorySegment>> {
      */
     private long getSsTableSize() {
         long entriesSize = 0;
+
         for (Entry<MemorySegment> value : memTable.values()) {
-            entriesSize += value.key().byteSize() + value.value().byteSize();
+            long valueSize = value.value() == null ? 0 : value.value().byteSize();
+            entriesSize += value.key().byteSize() + valueSize;
         }
         return Integer.BYTES
                 + (long) Long.BYTES * memTable.size()
