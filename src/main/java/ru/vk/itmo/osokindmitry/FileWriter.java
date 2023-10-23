@@ -51,16 +51,21 @@ public class FileWriter {
             );
             offsetEntry += entry.key().byteSize();
 
-            ssTable.set(ValueLayout.JAVA_LONG_UNALIGNED, offsetEntry, entry.value().byteSize());
+            if (entry.value() == null) {
+                ssTable.set(ValueLayout.JAVA_LONG_UNALIGNED, offsetEntry, -1);
+            } else {
+                ssTable.set(ValueLayout.JAVA_LONG_UNALIGNED, offsetEntry, entry.value().byteSize());
+                MemorySegment.copy(
+                        entry.value(),
+                        0,
+                        ssTable,
+                        offsetEntry + Long.BYTES,
+                        entry.value().byteSize()
+                );
+                offsetEntry += entry.value().byteSize();
+            }
+
             offsetEntry += Long.BYTES;
-            MemorySegment.copy(
-                    entry.value(),
-                    0,
-                    ssTable,
-                    offsetEntry,
-                    entry.value().byteSize()
-            );
-            offsetEntry += entry.value().byteSize();
         }
     }
 

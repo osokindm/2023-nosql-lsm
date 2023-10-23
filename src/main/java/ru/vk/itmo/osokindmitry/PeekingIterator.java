@@ -65,7 +65,7 @@ public class PeekingIterator implements Iterator<Entry<MemorySegment>> {
     }
 
     public Entry<MemorySegment> peek() {
-        if (current == null) {
+        if (current == null && delegate.hasNext()) {
             current = delegate.next();
         }
         return current;

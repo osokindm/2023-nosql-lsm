@@ -38,10 +38,11 @@ public class FileIterator implements Iterator<Entry<MemorySegment>> {
 
         long valueSize = mappedFile.get(ValueLayout.JAVA_LONG_UNALIGNED, offsetFrom);
         offsetFrom += Long.BYTES;
+        if (valueSize == -1) {
+            return null;
+        }
         MemorySegment slicedValue = mappedFile.asSlice(offsetFrom, valueSize);
         offsetFrom += valueSize;
-
-
         return new BaseEntry<>(slicedKey, slicedValue);
     }
 

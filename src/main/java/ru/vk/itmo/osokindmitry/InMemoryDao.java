@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -26,9 +27,11 @@ public class InMemoryDao implements Dao<MemorySegment, Entry<MemorySegment>> {
         path = config.basePath();
         arena = Arena.ofConfined();
         memTable = new ConcurrentSkipListMap<>(InMemoryDao::compare);
-        // todo check path
 
         try {
+            if (!path.toFile().exists()) {
+                Files.createDirectory(path);
+            }
             fr = new FileReader(path, arena);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -47,7 +50,11 @@ public class InMemoryDao implements Dao<MemorySegment, Entry<MemorySegment>> {
             }
         }
 
-        return entry;
+        if (entry == null) {
+            return null;
+        }
+
+        return entry.value() == null ? null : entry;
     }
 
     @Override
@@ -85,16 +92,18 @@ public class InMemoryDao implements Dao<MemorySegment, Entry<MemorySegment>> {
 
     @Override
     public void flush() throws IOException {
-        FileWriter fw = new FileWriter(path, arena, getSsTableSize(), fr.getFilesNumber());
-        fw.flushToSegment(memTable.values().iterator(), memTable.size());
+        if (!memTable.isEmpty()) {
+            FileWriter fw = new FileWriter(path, arena, getSsTableSize(), fr.getFilesNumber());
+            fw.flushToSegment(memTable.values().iterator(), memTable.size());
+        }
     }
 
     @Override
     public void close() throws IOException {
-        flush();
         if (!arena.scope().isAlive()) {
             arena.close();
         }
+        flush();
     }
 
     public static int compare(MemorySegment segment1, MemorySegment segment2) {
